@@ -1,9 +1,10 @@
-"""Local drum-notation desk. Bind to this machine only."""
+"""Drum-notation desk. Locally this binds to this machine only."""
 
 from __future__ import annotations
 
 import cgi
 import json
+import os
 import re
 import shutil
 import sys
@@ -23,8 +24,8 @@ from app.engrave import DISPLAY_NAME, build_score, count_instruments, render_pag
 
 STATIC = Path(__file__).resolve().parent / "static"
 OUTPUTS = ROOT / "outputs"
-HOST = "127.0.0.1"
-PORT = 8765
+PORT = int(os.environ.get("PORT", "8765"))
+HOST = os.environ.get("HOST", "0.0.0.0" if "PORT" in os.environ else "127.0.0.1")
 JOB_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 AUDIO_SUFFIXES = {".wav", ".mp3", ".flac", ".aif", ".aiff", ".ogg", ".m4a"}
 

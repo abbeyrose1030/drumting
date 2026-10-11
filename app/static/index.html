@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Drum Notation</title>
+  <title>BADUMTSS</title>
   <style>
     :root {
       --wall: #e3e3e0;
@@ -12,9 +12,6 @@
       --panel-hi: #f7f7f5;
       --ink: #2d2f32;
       --muted: #868a8e;
-      --seam: #c4c7ca;
-      --metal: linear-gradient(90deg, #a6aaae, #f5f6f7 45%, #c9ccce 60%, #9ea2a6);
-      --metal-v: linear-gradient(180deg, #a6aaae, #f5f6f7 45%, #c9ccce 60%, #9ea2a6);
       --slate: #3d4247;
       --slate-2: #565c62;
       --pink: #c8a9a5;
@@ -33,7 +30,6 @@
       color: var(--ink);
       background:
         radial-gradient(900px 420px at 50% 0%, rgba(255, 255, 255, 0.7), transparent 70%),
-        repeating-linear-gradient(90deg, transparent 0 318px, var(--seam) 318px 319px, #fbfbfa 319px 321px, var(--seam) 321px 322px),
         var(--wall);
       font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
       -webkit-font-smoothing: antialiased;
@@ -46,16 +42,13 @@
       align-items: flex-end;
       gap: 16px;
       padding: 34px 28px 18px;
-      background:
-        repeating-linear-gradient(90deg, transparent 0 158px, #b9bdc0 158px 159px, #ffffff 159px 161px, #b9bdc0 161px 162px),
-        linear-gradient(180deg, #fdfdfc, #ececea);
-      box-shadow: inset 0 -1px 0 #b9bdc0, inset 0 -3px 0 #ffffff, inset 0 -4px 0 #b9bdc0, 0 10px 30px rgba(255, 255, 255, 0.8);
+      background: linear-gradient(180deg, #fdfdfc, #ececea);
+      box-shadow: inset 0 -1px 0 #d4d6d7;
     }
     .mark {
       font-size: 22px;
       font-weight: 300;
       letter-spacing: 0.32em;
-      text-transform: uppercase;
       color: var(--ink);
       background: rgba(255, 255, 255, 0.75);
       padding: 6px 10px;
@@ -219,30 +212,38 @@
     .legend li:last-child { border-bottom: 0; }
     .legend b { font-weight: 400; color: var(--ink); }
 
-    .stage { min-height: calc(100vh - 260px); }
-    .empty, .status, .error { padding: 30px; }
-    .empty {
-      position: relative;
-      min-height: 420px;
+    [hidden] { display: none !important; }
+    .stage {
+      min-height: calc(100vh - 280px);
       display: flex;
-      align-items: flex-end;
-      background: linear-gradient(180deg, #f6f6f4, #ebebe8);
+      flex-direction: column;
+    }
+    .stage:not(.has-chart) {
+      justify-content: center;
+      align-items: center;
+    }
+    .empty, .status, .error { padding: 10px 12px; }
+    .empty {
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 11px;
+      line-height: 1.45;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .stage:not(.has-chart) .empty {
+      max-width: 28em;
+      padding: 0;
+      text-align: center;
+      font-size: 13px;
+      line-height: 1.7;
+      letter-spacing: 0.08em;
+    }
+    .stage.has-chart .empty {
+      margin-bottom: 12px;
+      background: #f6f6f4;
       border: 1px solid #d3d5d6;
       box-shadow: inset 0 1px 0 #ffffff;
-      color: var(--muted);
-      font-size: 20px;
-      font-weight: 300;
-      line-height: 1.5;
-      letter-spacing: 0.01em;
-    }
-    .empty::before {
-      content: "121";
-      position: absolute;
-      top: 18px;
-      right: 22px;
-      font-family: var(--mono);
-      font-size: 13px;
-      color: var(--ink);
     }
     .status {
       font-family: var(--mono);
@@ -334,7 +335,7 @@
 </head>
 <body>
   <header>
-    <div class="mark">DRUM <span>NOTATION</span></div>
+    <div class="mark">BADUMTSS</div>
     <p>Drum stem → sheet music</p>
   </header>
   <main>
@@ -427,7 +428,7 @@
 
     <section class="stage">
       <div class="error" id="error" hidden></div>
-      <div class="empty" id="empty">Drop an isolated drum stem. If a click is mixed in, it sets the grid and stays off the page. Enter the BPM next to the time signature when you know it.</div>
+      <div class="empty" id="empty">Drop an isolated drum stem. A mixed-in click sets the grid and stays off the page.</div>
       <div class="status" id="status" hidden>Listening for hits and writing the page…</div>
       <div id="result" hidden>
         <div class="sheet-tools">
@@ -467,7 +468,8 @@
       go.disabled = on || !file;
       statusEl.hidden = !on;
       if (message) statusEl.textContent = message;
-      empty.hidden = on || current;
+      empty.hidden = on;
+      document.querySelector(".stage").classList.toggle("has-chart", Boolean(current) && !on);
       if (on) result.hidden = true;
     }
 
@@ -512,14 +514,14 @@
       } catch (err) {
         setError(err.message);
         working(false);
-        empty.hidden = current ? true : false;
+        empty.hidden = false;
       }
     });
 
     function showJob(job) {
       current = job;
       working(false);
-      empty.hidden = true;
+      empty.hidden = false;
       result.hidden = false;
       adjust.hidden = false;
       document.getElementById("tempo").value = job.tempo;
