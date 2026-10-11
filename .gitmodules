@@ -1,0 +1,3 @@
+[submodule "vendor/DrumScript"]
+	path = vendor/DrumScript
+	url = https://github.com/abbeyrose1030/DrumScriptAbbey.git

@@ -1,0 +1,7 @@
+numpy>=1.24,<2
+librosa>=0.10.2,<0.11
+soundfile>=0.12.1
+pydub>=0.25.1
+pretty-midi>=0.2.10
+music21>=9.1.0
+verovio>=4.1.0

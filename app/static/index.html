@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Drum Notation</title>
+  <style>
+    :root {
+      --ink: #1c1612;
+      --paper: #f3ead7;
+      --paper-edge: #e4d7be;
+      --desk: #221c17;
+      --desk-2: #2c241d;
+      --line: rgba(243, 234, 215, 0.14);
+      --muted: #b3a594;
+      --red: #c4492c;
+      --red-deep: #8d2f1b;
+      --ok: #d7c4a3;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      min-height: 100%;
+      color: var(--paper);
+      background:
+        radial-gradient(1200px 500px at 10% -10%, rgba(196, 73, 44, 0.16), transparent 55%),
+        var(--desk);
+      font-family: "Avenir Next", "Segoe UI", sans-serif;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 16px;
+      padding: 22px 28px 8px;
+    }
+    .mark {
+      font-family: "Iowan Old Style", Palatino, "Palatino Linotype", serif;
+      font-size: 28px;
+      letter-spacing: 0.08em;
+      font-weight: 600;
+    }
+    .mark span { color: var(--red); }
+    header p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      letter-spacing: 0.04em;
+    }
+
+    main {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 22px;
+      padding: 12px 28px 32px;
+      align-items: start;
+    }
+
+    .panel {
+      background: var(--desk-2);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 16px;
+    }
+    .panel + .panel { margin-top: 14px; }
+
+    label, .field-label {
+      display: block;
+      margin: 12px 0 6px;
+      color: var(--muted);
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+    input[type="text"], input[type="number"], select {
+      width: 100%;
+      background: #17130f;
+      color: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font: inherit;
+      font-size: 15px;
+    }
+    input:focus, select:focus { outline: 2px solid rgba(196, 73, 44, 0.55); border-color: transparent; }
+
+    .drop {
+      border: 1.5px dashed rgba(243, 234, 215, 0.35);
+      border-radius: 14px;
+      padding: 22px 14px;
+      text-align: center;
+      background: #17130f;
+      cursor: pointer;
+    }
+    .drop.hot { border-color: var(--red); background: rgba(196, 73, 44, 0.08); }
+    .drop strong { display: block; font-family: "Iowan Old Style", Palatino, serif; font-size: 18px; font-weight: 600; }
+    .drop span { display: block; margin-top: 6px; color: var(--muted); font-size: 13px; }
+    .file-name { margin-top: 8px; font-size: 13px; color: var(--ok); min-height: 1.2em; }
+
+    .row { display: flex; gap: 8px; }
+    .row > * { flex: 1; }
+    button, .linkish {
+      appearance: none;
+      border: 0;
+      border-radius: 999px;
+      padding: 11px 14px;
+      font: inherit;
+      font-size: 14px;
+      cursor: pointer;
+      text-decoration: none;
+      text-align: center;
+    }
+    button.primary {
+      width: 100%;
+      margin-top: 14px;
+      background: var(--red);
+      color: #fff8f3;
+      font-weight: 600;
+    }
+    button.primary:disabled { opacity: 0.45; cursor: progress; }
+    button.ghost, a.ghost {
+      background: transparent;
+      color: var(--paper);
+      border: 1px solid var(--line);
+    }
+    button.ghost:hover, a.ghost:hover { border-color: var(--ok); }
+    .check {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 13px;
+      text-transform: none;
+      letter-spacing: 0;
+    }
+    .check input { accent-color: var(--red); }
+
+    .legend { margin: 0; padding: 0; list-style: none; }
+    .legend li {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 5px 0;
+      border-bottom: 1px solid var(--line);
+      font-size: 13px;
+    }
+    .legend b { font-weight: 600; color: var(--ok); }
+
+    .stage { min-height: calc(100vh - 120px); }
+    .empty, .status, .error {
+      border-radius: 18px;
+      padding: 28px;
+    }
+    .empty {
+      border: 1px dashed rgba(243, 234, 215, 0.2);
+      color: var(--muted);
+      font-family: "Iowan Old Style", Palatino, serif;
+      font-size: 22px;
+      line-height: 1.45;
+    }
+    .status { color: var(--ok); }
+    .error {
+      background: rgba(196, 73, 44, 0.12);
+      color: #ffd0c4;
+      margin-bottom: 12px;
+    }
+    .sheet-wrap { display: grid; gap: 18px; }
+    .sheet {
+      background: var(--paper);
+      color: var(--ink);
+      border-radius: 6px;
+      box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+      overflow: hidden;
+    }
+    .sheet img { display: block; width: 100%; height: auto; background: var(--paper); }
+    .sheet-tools {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .counts { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 0; }
+    .counts span {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 4px 8px;
+      font-size: 12px;
+      color: var(--ok);
+    }
+    .recent { list-style: none; margin: 0; padding: 0; }
+    .recent button {
+      width: 100%;
+      text-align: left;
+      background: transparent;
+      color: var(--paper);
+      border-radius: 10px;
+      padding: 8px;
+    }
+    .recent button:hover { background: rgba(243, 234, 215, 0.06); }
+    .recent small { display: block; color: var(--muted); }
+    footer {
+      padding: 0 28px 28px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    @media (max-width: 900px) {
+      main { grid-template-columns: 1fr; }
+      header { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="mark">DRUM <span>NOTATION</span></div>
+    <p>Isolated drum stem → treble-clef sheet music</p>
+  </header>
+  <main>
+    <aside>
+      <form class="panel" id="form">
+        <div class="drop" id="drop">
+          <strong>Drop a drum stem</strong>
+          <span>wav, mp3, flac, aiff, m4a</span>
+          <div class="file-name" id="file-name">No file yet</div>
+        </div>
+        <input id="audio" name="audio" type="file" accept=".wav,.mp3,.flac,.aif,.aiff,.ogg,.m4a,audio/*" hidden>
+
+        <label for="title">Title on the page</label>
+        <input id="title" name="title" type="text" placeholder="Song title" maxlength="120">
+
+        <div class="row">
+          <div>
+            <label for="time-signature">Time signature</label>
+            <select id="time-signature" name="time_signature">
+              <option>4/4</option>
+              <option>3/4</option>
+              <option>2/4</option>
+              <option>5/4</option>
+              <option>6/8</option>
+              <option>7/8</option>
+              <option>12/8</option>
+            </select>
+          </div>
+          <div>
+            <label for="bpm">BPM</label>
+            <input id="bpm" name="bpm" type="number" min="30" max="320" step="0.1" placeholder="Auto">
+          </div>
+        </div>
+
+        <label class="check"><input id="has-click" type="checkbox" checked> A click is mixed into this stem</label>
+        <label class="check"><input id="rudiment" type="checkbox"> Isolated hits or a rudiment, not a full groove</label>
+
+        <button class="primary" id="go" type="submit" disabled>Write the chart</button>
+      </form>
+
+      <section class="panel" id="adjust" hidden>
+        <div class="field-label">After the first pass</div>
+        <label for="tempo">Tempo</label>
+        <input id="tempo" type="number" min="30" max="320" step="0.1">
+        <div class="row" style="margin-top:8px">
+          <button class="ghost" id="half" type="button">Half tempo</button>
+          <button class="ghost" id="double" type="button">Double tempo</button>
+        </div>
+        <label for="grid">Grid</label>
+        <select id="grid">
+          <option value="16">Sixteenth notes</option>
+          <option value="8">Eighth notes</option>
+        </select>
+        <label for="per-system">Bars on a system</label>
+        <select id="per-system">
+          <option value="4">4</option>
+          <option value="2">2</option>
+        </select>
+        <label>Nudge the downbeat</label>
+        <div class="row">
+          <button class="ghost" id="nudge-back" type="button">− 16th</button>
+          <button class="ghost" id="nudge-forward" type="button">+ 16th</button>
+        </div>
+        <div class="file-name" id="nudge-readout">On the grid</div>
+        <button class="primary" id="redraw" type="button">Redraw</button>
+        <div class="counts" id="counts"></div>
+      </section>
+
+      <section class="panel">
+        <div class="field-label">How to read it</div>
+        <ul class="legend">
+          <li><span>Bottom space</span><b>Kick</b></li>
+          <li><span>2nd space</span><b>Floor tom</b></li>
+          <li><span>3rd space</span><b>Snare</b></li>
+          <li><span>4th line</span><b>Mid tom</b></li>
+          <li><span>Top space</span><b>High tom</b></li>
+          <li><span>Top line ×</span><b>Ride</b></li>
+          <li><span>Above the staff ×</span><b>Closed hat</b></li>
+          <li><span>Above the staff ⊕</span><b>Open hat</b></li>
+          <li><span>Ledger line ×</span><b>Crash</b></li>
+          <li><span>Middle line △</span><b>Unidentified</b></li>
+        </ul>
+      </section>
+
+      <section class="panel">
+        <div class="field-label">Recent charts</div>
+        <ul class="recent" id="recent"><li style="color:var(--muted);font-size:13px">None yet</li></ul>
+      </section>
+    </aside>
+
+    <section class="stage">
+      <div class="error" id="error" hidden></div>
+      <div class="empty" id="empty">Drop an isolated drum stem. If a click is mixed in, it sets the grid and stays off the page. Enter the BPM next to the time signature when you know it.</div>
+      <div class="status" id="status" hidden>Listening for hits and writing the page…</div>
+      <div id="result" hidden>
+        <div class="sheet-tools">
+          <a class="ghost linkish" id="pdf" href="#">PDF</a>
+          <a class="ghost linkish" id="xml" href="#">MusicXML</a>
+          <a class="ghost linkish" id="midi" href="#">MIDI</a>
+        </div>
+        <div class="sheet-wrap" id="pages"></div>
+      </div>
+    </section>
+  </main>
+  <footer>Hit detection uses DrumScript, Apache License 2.0. The page is engraved here in standard drum-set positions on a treble staff. Audio stays on this computer.</footer>
+  <script>
+    const audioInput = document.getElementById("audio");
+    const drop = document.getElementById("drop");
+    const fileName = document.getElementById("file-name");
+    const form = document.getElementById("form");
+    const go = document.getElementById("go");
+    const titleInput = document.getElementById("title");
+    const timeSignature = document.getElementById("time-signature");
+    const empty = document.getElementById("empty");
+    const statusEl = document.getElementById("status");
+    const errorEl = document.getElementById("error");
+    const result = document.getElementById("result");
+    const pages = document.getElementById("pages");
+    const adjust = document.getElementById("adjust");
+    const recent = document.getElementById("recent");
+    let current = null;
+    let file = null;
+
+    function setError(message) {
+      errorEl.hidden = !message;
+      errorEl.textContent = message || "";
+    }
+
+    function working(on, message) {
+      go.disabled = on || !file;
+      statusEl.hidden = !on;
+      if (message) statusEl.textContent = message;
+      empty.hidden = on || current;
+      if (on) result.hidden = true;
+    }
+
+    drop.addEventListener("click", () => audioInput.click());
+    ["dragover", "dragenter"].forEach((name) => drop.addEventListener(name, (event) => {
+      event.preventDefault();
+      drop.classList.add("hot");
+    }));
+    ["dragleave", "drop"].forEach((name) => drop.addEventListener(name, (event) => {
+      event.preventDefault();
+      drop.classList.remove("hot");
+    }));
+    drop.addEventListener("drop", (event) => takeFile(event.dataTransfer.files[0]));
+    audioInput.addEventListener("change", () => takeFile(audioInput.files[0]));
+
+    function takeFile(next) {
+      if (!next) return;
+      file = next;
+      fileName.textContent = next.name;
+      if (!titleInput.value) titleInput.value = next.name.replace(/\.[^.]+$/, "");
+      go.disabled = false;
+    }
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (!file) return;
+      setError("");
+      working(true, "Finding the click, then writing the page. A full song can take a minute.");
+      const body = new FormData();
+      body.append("audio", file);
+      body.append("title", titleInput.value);
+      body.append("time_signature", timeSignature.value);
+      body.append("bpm", document.getElementById("bpm").value);
+      body.append("has_click", document.getElementById("has-click").checked ? "true" : "false");
+      body.append("rudiment", document.getElementById("rudiment").checked ? "true" : "false");
+      try {
+        const response = await fetch("/api/transcribe", { method: "POST", body });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || "Transcription failed.");
+        showJob(payload.job);
+        loadRecent();
+      } catch (err) {
+        setError(err.message);
+        working(false);
+        empty.hidden = current ? true : false;
+      }
+    });
+
+    function showJob(job) {
+      current = job;
+      working(false);
+      empty.hidden = true;
+      result.hidden = false;
+      adjust.hidden = false;
+      document.getElementById("tempo").value = job.tempo;
+      timeSignature.value = job.time_signature;
+      document.getElementById("grid").value = String(job.subdivision || 16);
+      document.getElementById("per-system").value = String(job.measures_per_system || 4);
+      titleInput.value = job.title || titleInput.value;
+      const shift = job.shift_sixteenths || 0;
+      document.getElementById("nudge-readout").textContent = shift === 0
+        ? "On the grid"
+        : (shift > 0 ? `${shift} sixteenth notes later` : `${Math.abs(shift)} sixteenth notes earlier`);
+      const stamp = Date.now();
+      document.getElementById("pdf").href = `/api/jobs/${job.id}/score.pdf?${stamp}`;
+      document.getElementById("xml").href = `/api/jobs/${job.id}/score.musicxml?${stamp}`;
+      document.getElementById("midi").href = `/api/jobs/${job.id}/score.mid?${stamp}`;
+      pages.innerHTML = "";
+      for (let number = 1; number <= job.page_count; number += 1) {
+        const sheet = document.createElement("div");
+        sheet.className = "sheet";
+        const img = document.createElement("img");
+        img.alt = `Page ${number}`;
+        img.src = `/api/jobs/${job.id}/page-${number}.svg?${stamp}`;
+        sheet.appendChild(img);
+        pages.appendChild(sheet);
+      }
+      const counts = document.getElementById("counts");
+      counts.innerHTML = "";
+      if (job.click_found) {
+        const click = document.createElement("span");
+        click.textContent = `Click grid · ${job.clicks_removed} clicks left off the chart`;
+        counts.appendChild(click);
+      }
+      (job.counts || []).forEach((item) => {
+        const chip = document.createElement("span");
+        chip.textContent = `${item.name} ${item.count}`;
+        counts.appendChild(chip);
+      });
+      const summary = document.createElement("span");
+      summary.textContent = `${job.measure_count} bars · ${Math.round(job.tempo)} BPM`;
+      counts.appendChild(summary);
+    }
+
+    async function redraw(extra) {
+      if (!current) return;
+      setError("");
+      working(true, "Redrawing the chart…");
+      const payload = Object.assign({
+        tempo: Number(document.getElementById("tempo").value),
+        time_signature: timeSignature.value,
+        subdivision: Number(document.getElementById("grid").value),
+        measures_per_system: Number(document.getElementById("per-system").value),
+        shift_sixteenths: current.shift_sixteenths || 0,
+        title: titleInput.value,
+      }, extra || {});
+      try {
+        const response = await fetch(`/api/jobs/${current.id}/engrave`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Could not redraw.");
+        showJob(data.job);
+      } catch (err) {
+        setError(err.message);
+        working(false);
+        result.hidden = false;
+      }
+    }
+
+    document.getElementById("redraw").addEventListener("click", () => redraw());
+    document.getElementById("half").addEventListener("click", () => {
+      const tempo = document.getElementById("tempo");
+      tempo.value = (Number(tempo.value) / 2).toFixed(2);
+      redraw();
+    });
+    document.getElementById("double").addEventListener("click", () => {
+      const tempo = document.getElementById("tempo");
+      tempo.value = (Number(tempo.value) * 2).toFixed(2);
+      redraw();
+    });
+    document.getElementById("nudge-back").addEventListener("click", () => {
+      redraw({ shift_sixteenths: (current.shift_sixteenths || 0) - 1 });
+    });
+    document.getElementById("nudge-forward").addEventListener("click", () => {
+      redraw({ shift_sixteenths: (current.shift_sixteenths || 0) + 1 });
+    });
+
+    async function loadRecent() {
+      const response = await fetch("/api/jobs");
+      const payload = await response.json();
+      recent.innerHTML = "";
+      if (!payload.jobs || !payload.jobs.length) {
+        recent.innerHTML = '<li style="color:var(--muted);font-size:13px">None yet</li>';
+        return;
+      }
+      payload.jobs.forEach((job) => {
+        const item = document.createElement("li");
+        const button = document.createElement("button");
+        button.type = "button";
+        button.innerHTML = `${job.title}<small>${job.time_signature} · ${Math.round(job.tempo)} BPM</small>`;
+        button.addEventListener("click", () => showJob(job));
+        item.appendChild(button);
+        recent.appendChild(item);
+      });
+    }
+
+    loadRecent();
+  </script>
+</body>
+</html>
