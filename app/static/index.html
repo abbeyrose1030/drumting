@@ -6,221 +6,340 @@
   <title>Drum Notation</title>
   <style>
     :root {
-      --ink: #1c1612;
-      --paper: #f3ead7;
-      --paper-edge: #e4d7be;
-      --desk: #221c17;
-      --desk-2: #2c241d;
-      --line: rgba(243, 234, 215, 0.14);
-      --muted: #b3a594;
-      --red: #c4492c;
-      --red-deep: #8d2f1b;
-      --ok: #d7c4a3;
+      --wall: #e3e3e0;
+      --wall-hi: #f2f2f0;
+      --panel: #efefec;
+      --panel-hi: #f7f7f5;
+      --ink: #2d2f32;
+      --muted: #868a8e;
+      --seam: #c4c7ca;
+      --metal: linear-gradient(90deg, #a6aaae, #f5f6f7 45%, #c9ccce 60%, #9ea2a6);
+      --metal-v: linear-gradient(180deg, #a6aaae, #f5f6f7 45%, #c9ccce 60%, #9ea2a6);
+      --slate: #3d4247;
+      --slate-2: #565c62;
+      --pink: #c8a9a5;
+      --pink-deep: #9a7773;
+      --ok: #5f6468;
+      --mono: "SF Mono", ui-monospace, Menlo, "OCR B", monospace;
+      --carpet: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='1.4' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .52  0 0 0 0 .38  0 0 0 0 .38  0 0 0 .7 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
     }
 
     * { box-sizing: border-box; }
-    html, body { margin: 0; height: 100%; }
+    html, body { margin: 0; min-height: 100%; }
     body {
-      min-height: 100%;
-      color: var(--paper);
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      color: var(--ink);
       background:
-        radial-gradient(1200px 500px at 10% -10%, rgba(196, 73, 44, 0.16), transparent 55%),
-        var(--desk);
-      font-family: "Avenir Next", "Segoe UI", sans-serif;
+        radial-gradient(900px 420px at 50% 0%, rgba(255, 255, 255, 0.7), transparent 70%),
+        repeating-linear-gradient(90deg, transparent 0 318px, var(--seam) 318px 319px, #fbfbfa 319px 321px, var(--seam) 321px 322px),
+        var(--wall);
+      font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
     }
 
     header {
+      position: relative;
       display: flex;
       justify-content: space-between;
-      align-items: baseline;
+      align-items: flex-end;
       gap: 16px;
-      padding: 22px 28px 8px;
+      padding: 34px 28px 18px;
+      background:
+        repeating-linear-gradient(90deg, transparent 0 158px, #b9bdc0 158px 159px, #ffffff 159px 161px, #b9bdc0 161px 162px),
+        linear-gradient(180deg, #fdfdfc, #ececea);
+      box-shadow: inset 0 -1px 0 #b9bdc0, inset 0 -3px 0 #ffffff, inset 0 -4px 0 #b9bdc0, 0 10px 30px rgba(255, 255, 255, 0.8);
     }
     .mark {
-      font-family: "Iowan Old Style", Palatino, "Palatino Linotype", serif;
-      font-size: 28px;
-      letter-spacing: 0.08em;
-      font-weight: 600;
+      font-size: 22px;
+      font-weight: 300;
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      color: var(--ink);
+      background: rgba(255, 255, 255, 0.75);
+      padding: 6px 10px;
     }
-    .mark span { color: var(--red); }
+    .mark span { color: var(--pink-deep); }
     header p {
       margin: 0;
       color: var(--muted);
-      font-size: 13px;
-      letter-spacing: 0.04em;
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      background: rgba(255, 255, 255, 0.75);
+      padding: 4px 8px;
     }
 
     main {
+      flex: 1;
       display: grid;
       grid-template-columns: 320px 1fr;
       gap: 22px;
-      padding: 12px 28px 32px;
+      padding: 26px 28px 40px;
       align-items: start;
+      width: 100%;
     }
 
     .panel {
-      background: var(--desk-2);
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      padding: 16px;
+      position: relative;
+      background: linear-gradient(180deg, var(--panel-hi), var(--panel));
+      border: 1px solid #cfd1d2;
+      box-shadow: inset 0 1px 0 #ffffff, 0 1px 0 #ffffff, 0 8px 18px rgba(60, 64, 68, 0.06);
+      padding: 34px 18px 18px;
     }
-    .panel + .panel { margin-top: 14px; }
+    .panel + .panel { margin-top: 10px; }
+    .panel[data-no]::before {
+      content: attr(data-no);
+      position: absolute;
+      top: 10px;
+      right: 46px;
+      font-family: var(--mono);
+      font-size: 12px;
+      letter-spacing: 0.06em;
+      color: var(--ink);
+    }
+    .panel[data-no]::after {
+      content: "";
+      position: absolute;
+      top: 12px;
+      right: 16px;
+      width: 22px;
+      height: 8px;
+      background: #2b2e31;
+      box-shadow: inset 0 0 0 1px #8d9195, 0 1px 0 #ffffff;
+    }
 
     label, .field-label {
       display: block;
-      margin: 12px 0 6px;
+      margin: 14px 0 6px;
       color: var(--muted);
-      font-size: 11px;
-      letter-spacing: 0.14em;
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.16em;
       text-transform: uppercase;
     }
+    .panel > .field-label:first-child { margin-top: -22px; margin-bottom: 14px; }
     input[type="text"], input[type="number"], select {
       width: 100%;
-      background: #17130f;
-      color: var(--paper);
-      border: 1px solid var(--line);
-      border-radius: 10px;
+      background: #fbfbfa;
+      color: var(--ink);
+      border: 1px solid #c9cccf;
+      border-radius: 0;
       padding: 10px 12px;
       font: inherit;
-      font-size: 15px;
+      font-size: 14px;
+      box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
     }
-    input:focus, select:focus { outline: 2px solid rgba(196, 73, 44, 0.55); border-color: transparent; }
+    input:focus, select:focus { outline: 1px solid var(--pink-deep); outline-offset: 0; border-color: var(--pink-deep); }
 
     .drop {
-      border: 1.5px dashed rgba(243, 234, 215, 0.35);
-      border-radius: 14px;
-      padding: 22px 14px;
+      position: relative;
+      border: 1px solid #c9cccf;
+      padding: 30px 14px 22px;
       text-align: center;
-      background: #17130f;
+      background: linear-gradient(180deg, #fafaf9, #ededeb);
+      box-shadow: inset 0 1px 0 #ffffff;
       cursor: pointer;
+      transition: background 0.15s;
     }
-    .drop.hot { border-color: var(--red); background: rgba(196, 73, 44, 0.08); }
-    .drop strong { display: block; font-family: "Iowan Old Style", Palatino, serif; font-size: 18px; font-weight: 600; }
-    .drop span { display: block; margin-top: 6px; color: var(--muted); font-size: 13px; }
-    .file-name { margin-top: 8px; font-size: 13px; color: var(--ok); min-height: 1.2em; }
+    .drop::before {
+      content: "";
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #ffffff, #8f9397);
+      box-shadow: 0 0 0 1px #9ca0a4;
+    }
+    .drop:hover, .drop.hot { background: linear-gradient(180deg, #f6eeed, #ead9d7); border-color: var(--pink); }
+    .drop strong { display: block; font-size: 15px; font-weight: 400; letter-spacing: 0.12em; text-transform: uppercase; }
+    .drop span { display: block; margin-top: 6px; color: var(--muted); font-family: var(--mono); font-size: 11px; }
+    .file-name { margin-top: 8px; font-family: var(--mono); font-size: 11px; color: var(--ok); min-height: 1.2em; }
 
     .row { display: flex; gap: 8px; }
     .row > * { flex: 1; }
     button, .linkish {
       appearance: none;
       border: 0;
-      border-radius: 999px;
+      border-radius: 0;
       padding: 11px 14px;
       font: inherit;
-      font-size: 14px;
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
       cursor: pointer;
       text-decoration: none;
       text-align: center;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
     }
     button.primary {
       width: 100%;
-      margin-top: 14px;
-      background: var(--red);
-      color: #fff8f3;
-      font-weight: 600;
+      margin-top: 18px;
+      background: var(--slate);
+      color: #f4f4f2;
+      box-shadow: inset 0 1px 0 var(--slate-2);
     }
-    button.primary:disabled { opacity: 0.45; cursor: progress; }
+    button.primary:hover:not(:disabled) { background: var(--pink-deep); box-shadow: none; }
+    button.primary:disabled { opacity: 0.35; cursor: not-allowed; }
     button.ghost, a.ghost {
-      background: transparent;
-      color: var(--paper);
-      border: 1px solid var(--line);
+      background: #fafaf9;
+      color: var(--ink);
+      border: 1px solid #c3c6c9;
+      box-shadow: inset 0 1px 0 #ffffff;
     }
-    button.ghost:hover, a.ghost:hover { border-color: var(--ok); }
+    button.ghost:hover, a.ghost:hover { border-color: var(--pink-deep); color: var(--pink-deep); }
     .check {
       display: flex;
       gap: 8px;
       align-items: center;
       margin-top: 12px;
-      color: var(--muted);
+      color: var(--ink);
+      font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
       font-size: 13px;
       text-transform: none;
       letter-spacing: 0;
     }
-    .check input { accent-color: var(--red); }
+    .check input { accent-color: var(--slate); }
 
     .legend { margin: 0; padding: 0; list-style: none; }
     .legend li {
       display: flex;
       justify-content: space-between;
       gap: 12px;
-      padding: 5px 0;
-      border-bottom: 1px solid var(--line);
+      padding: 6px 0;
+      border-bottom: 1px solid #dcdedf;
       font-size: 13px;
-    }
-    .legend b { font-weight: 600; color: var(--ok); }
-
-    .stage { min-height: calc(100vh - 120px); }
-    .empty, .status, .error {
-      border-radius: 18px;
-      padding: 28px;
-    }
-    .empty {
-      border: 1px dashed rgba(243, 234, 215, 0.2);
       color: var(--muted);
-      font-family: "Iowan Old Style", Palatino, serif;
-      font-size: 22px;
-      line-height: 1.45;
     }
-    .status { color: var(--ok); }
-    .error {
-      background: rgba(196, 73, 44, 0.12);
-      color: #ffd0c4;
-      margin-bottom: 12px;
+    .legend li:last-child { border-bottom: 0; }
+    .legend b { font-weight: 400; color: var(--ink); }
+
+    .stage { min-height: calc(100vh - 260px); }
+    .empty, .status, .error { padding: 30px; }
+    .empty {
+      position: relative;
+      min-height: 420px;
+      display: flex;
+      align-items: flex-end;
+      background: linear-gradient(180deg, #f6f6f4, #ebebe8);
+      border: 1px solid #d3d5d6;
+      box-shadow: inset 0 1px 0 #ffffff;
+      color: var(--muted);
+      font-size: 20px;
+      font-weight: 300;
+      line-height: 1.5;
+      letter-spacing: 0.01em;
     }
-    .sheet-wrap { display: grid; gap: 18px; }
-    .sheet {
-      background: var(--paper);
+    .empty::before {
+      content: "121";
+      position: absolute;
+      top: 18px;
+      right: 22px;
+      font-family: var(--mono);
+      font-size: 13px;
       color: var(--ink);
-      border-radius: 6px;
-      box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+    }
+    .status {
+      font-family: var(--mono);
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--ink);
+      background: rgba(255, 255, 255, 0.6);
+      border: 1px solid #d3d5d6;
+      border-left: 3px solid var(--pink-deep);
+    }
+    .error {
+      background: #f3e6e4;
+      border: 1px solid var(--pink);
+      color: #6e4643;
+      margin-bottom: 12px;
+      font-size: 14px;
+    }
+    .sheet-wrap { display: grid; gap: 22px; }
+    .sheet {
+      background: #ffffff;
+      color: #111;
+      padding: 6px;
+      border: 1px solid #c9cccf;
+      box-shadow: 0 1px 0 #ffffff, 0 22px 40px rgba(60, 64, 68, 0.12);
       overflow: hidden;
     }
-    .sheet img { display: block; width: 100%; height: auto; background: var(--paper); }
+    .sheet img { display: block; width: 100%; height: auto; background: #ffffff; }
     .sheet-tools {
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
       align-items: center;
-      margin-bottom: 12px;
+      margin-bottom: 14px;
     }
-    .counts { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 0; }
+    .counts { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 0; }
     .counts span {
-      border: 1px solid var(--line);
-      border-radius: 999px;
+      background: #fafaf9;
+      border: 1px solid #cfd1d3;
       padding: 4px 8px;
-      font-size: 12px;
-      color: var(--ok);
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.06em;
+      color: var(--ink);
     }
     .recent { list-style: none; margin: 0; padding: 0; }
+    .recent li + li { border-top: 1px solid #dcdedf; }
     .recent button {
       width: 100%;
       text-align: left;
       background: transparent;
-      color: var(--paper);
-      border-radius: 10px;
-      padding: 8px;
+      color: var(--ink);
+      font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+      font-size: 13px;
+      letter-spacing: 0;
+      text-transform: none;
+      padding: 9px 6px;
     }
-    .recent button:hover { background: rgba(243, 234, 215, 0.06); }
-    .recent small { display: block; color: var(--muted); }
+    .recent button:hover { background: #f1e6e4; }
+    .recent small { display: block; margin-top: 2px; color: var(--muted); font-family: var(--mono); font-size: 10px; letter-spacing: 0.06em; }
+
     footer {
-      padding: 0 28px 28px;
-      color: var(--muted);
-      font-size: 12px;
+      position: relative;
+      min-height: 150px;
+      padding: 48px 28px 28px;
+      color: #5e4744;
+      font-size: 11px;
+      font-family: var(--mono);
+      letter-spacing: 0.04em;
+      background:
+        linear-gradient(180deg, rgba(110, 80, 78, 0.12), transparent 30px),
+        var(--carpet),
+        #cfb6b2;
+    }
+    footer::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 0;
+      height: 5px;
+      background: linear-gradient(180deg, #f7f8f8, #a9adb1);
     }
     @media (max-width: 900px) {
       main { grid-template-columns: 1fr; }
-      header { flex-direction: column; }
+      header { flex-direction: column; align-items: flex-start; }
     }
   </style>
 </head>
 <body>
   <header>
     <div class="mark">DRUM <span>NOTATION</span></div>
-    <p>Isolated drum stem → treble-clef sheet music</p>
+    <p>Drum stem → sheet music</p>
   </header>
   <main>
     <aside>
-      <form class="panel" id="form">
+      <form class="panel" id="form" data-no="126">
         <div class="drop" id="drop">
           <strong>Drop a drum stem</strong>
           <span>wav, mp3, flac, aiff, m4a</span>
@@ -256,7 +375,7 @@
         <button class="primary" id="go" type="submit" disabled>Write the chart</button>
       </form>
 
-      <section class="panel" id="adjust" hidden>
+      <section class="panel" id="adjust" data-no="127" hidden>
         <div class="field-label">After the first pass</div>
         <label for="tempo">Tempo</label>
         <input id="tempo" type="number" min="30" max="320" step="0.1">
@@ -284,7 +403,7 @@
         <div class="counts" id="counts"></div>
       </section>
 
-      <section class="panel">
+      <section class="panel" data-no="128">
         <div class="field-label">How to read it</div>
         <ul class="legend">
           <li><span>Bottom space</span><b>Kick</b></li>
@@ -300,7 +419,7 @@
         </ul>
       </section>
 
-      <section class="panel">
+      <section class="panel" data-no="129">
         <div class="field-label">Recent charts</div>
         <ul class="recent" id="recent"><li style="color:var(--muted);font-size:13px">None yet</li></ul>
       </section>
