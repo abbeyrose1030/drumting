@@ -177,16 +177,98 @@ def _fold_bpm(period: float) -> float:
     return bpm
 
 
+def find_count_in(audio: np.ndarray, sample_rate: int) -> list[float]:
+    """The run of identical, evenly spaced clicks before the drums come in.
+
+    Returns their times, or [] when the stem does not open with one."""
+    import librosa
+
+    pad = int(0.1 * sample_rate)
+    padded = np.concatenate([np.zeros(pad, dtype=np.float32), audio[: int(40 * sample_rate)].astype(np.float32)])
+    onsets = librosa.onset.onset_detect(y=padded, sr=sample_rate, hop_length=256, units="time", backtrack=False, delta=0.1)
+    onsets = [float(t) - 0.1 for t in onsets if t >= 0.08]
+    if len(onsets) < 4:
+        return []
+
+    window = int(0.025 * sample_rate)
+    snippets, times = _snippets(padded, [t + 0.1 for t in onsets[:40]], sample_rate, window)
+    if len(times) < 4:
+        return []
+    times = [t - 0.1 for t in times]
+    units = _spectral_units(snippets)
+    short = [_is_short_pulse(padded, t + 0.1, sample_rate) for t in times]
+
+    run = [0]
+    period = None
+    for index in range(1, len(times)):
+        # Beat 1 is often an accented click, so it only roughly matches the others.
+        if not short[index] or max(float(units[index] @ units[j]) for j in run) < 0.7:
+            break
+        gap = times[index] - times[run[-1]]
+        if period is None:
+            if not 0.25 <= gap <= 1.6:
+                break
+            period = gap
+        elif abs(gap - period) > 0.03 * period:
+            break
+        run.append(index)
+    if not short[0] or len(run) < 3:
+        return []
+    return [round(times[i], 5) for i in run]
+
+
+def _grid_click(origin: float, period: float, template_times: list[float], duration: float, bpm_hint: float | None, time_signature: str, count_in: bool) -> dict:
+    if bpm_hint:
+        written_bpm = float(bpm_hint)
+    else:
+        written_bpm = _fold_bpm(period)
+    quarter = _quarter_period(written_bpm)
+    # An accented click can match itself only on every other beat, so the grid steps
+    # at least once per quarter. Removal skips any grid point that holds no click.
+    step = min(period, quarter) if bpm_hint else period
+    click_times = []
+    cursor = origin
+    while cursor < duration - 0.02:
+        click_times.append(round(cursor, 5))
+        cursor += step
+    return {
+        "found": True,
+        "tempo": round(written_bpm, 2),
+        "period": period,
+        "quarter": quarter,
+        "origin": round(origin, 5),
+        "template_times": [round(hit, 5) for hit in template_times],
+        "click_times": click_times,
+        "time_signature": time_signature,
+        "count_in": count_in,
+    }
+
+
+def click_from_count_in(count_in: list[float], duration: float, bpm_hint: float | None, time_signature: str) -> dict:
+    """A count-in starts on beat 1 and sets the tempo, so it fixes the whole grid."""
+    period = (count_in[-1] - count_in[0]) / (len(count_in) - 1)
+    if bpm_hint:
+        quarter = _quarter_period(bpm_hint)
+        # Some count-ins click on the half note or the eighth. A typed tempo that fits none
+        # of those is a typo, and the count-in wins.
+        if not any(abs(period - k * quarter) <= 0.04 * k * quarter for k in (0.5, 1.0, 2.0)):
+            bpm_hint = None
+    return _grid_click(count_in[0], period, count_in, duration, bpm_hint, time_signature, True)
+
+
 def find_click(
     audio: np.ndarray,
     sample_rate: int,
     bpm_hint: float | None = None,
     time_signature: str = "4/4",
+    count_in: list[float] | None = None,
 ) -> dict | None:
     """Locate a mixed-in click. Returns None when the stem has no steady click."""
     duration = len(audio) / sample_rate
     if duration < 2.0:
         return None
+    if count_in:
+        return click_from_count_in(count_in, duration, bpm_hint, time_signature)
 
     high = _highpass(audio, sample_rate)
     peak = float(np.max(np.abs(high))) or 1.0
@@ -210,35 +292,8 @@ def find_click(
 
     if best_period is None:
         return None
-
-    if bpm_hint:
-        written_bpm = float(bpm_hint)
-        quarter = _quarter_period(written_bpm)
-    else:
-        written_bpm = _fold_bpm(best_period)
-        quarter = _quarter_period(written_bpm)
-
     # The clean pulses give the phase. Fill every beat, including ones a drum hit covered.
-    # An accented click can match itself only on every other beat, so the grid steps
-    # at least once per quarter. Removal skips any grid point that holds no click.
-    step = min(best_period, quarter) if bpm_hint else best_period
-    origin = round(min(best_times), 5)
-    click_times = []
-    cursor = origin
-    while cursor < duration - 0.02:
-        click_times.append(round(cursor, 5))
-        cursor += step
-
-    return {
-        "found": True,
-        "tempo": round(written_bpm, 2),
-        "period": best_period,
-        "quarter": quarter,
-        "origin": origin,
-        "template_times": [round(hit, 5) for hit in best_times],
-        "click_times": click_times,
-        "time_signature": time_signature,
-    }
+    return _grid_click(min(best_times), best_period, best_times, duration, bpm_hint, time_signature, False)
 
 
 def remove_click(audio: np.ndarray, sample_rate: int, click: dict) -> tuple[np.ndarray, int]:

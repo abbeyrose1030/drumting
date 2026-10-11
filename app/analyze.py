@@ -33,7 +33,14 @@ def analyze(
     """Return tempo and classified hits. Audio must already be drums only."""
     import numpy as np
 
-    from app.click_track import align_to_click, drop_click_residuals, find_click, remove_click
+    from app.click_track import (
+        align_to_click,
+        click_from_count_in,
+        drop_click_residuals,
+        find_click,
+        find_count_in,
+        remove_click,
+    )
     from app.detect import detect_hits
     from app.grid import align_to_downbeat
     from drumscript.audio_processor.audio_loader import load_audio, normalise_audio
@@ -47,18 +54,27 @@ def analyze(
     if audio.size == 0:
         raise ValueError("That audio file is empty.")
 
+    duration = len(audio) / sample_rate
+    count_in = [] if rudiment else find_count_in(audio, sample_rate)
+    if count_in:
+        print(f"Count-in of {len(count_in)} clicks from {count_in[0]:.3f}s")
+
     click = None
     clicks_removed = 0
     if use_click and not rudiment:
-        click = find_click(audio, sample_rate, bpm_hint=bpm, time_signature=time_signature)
+        click = find_click(audio, sample_rate, bpm_hint=bpm, time_signature=time_signature, count_in=count_in)
         if click is not None:
             audio, clicks_removed = remove_click(audio, sample_rate, click)
             print(f"Click grid at {click['tempo']} BPM, {clicks_removed} clicks removed, downbeat at {click['origin']:.3f}s")
+    # Without a click to remove, a count-in still fixes the tempo and where beat 1 falls.
+    grid = click
+    if grid is None and count_in:
+        grid = click_from_count_in(count_in, duration, bpm, time_signature)
 
     if bpm:
         tempo = float(bpm)
-    elif click is not None:
-        tempo = float(click["tempo"])
+    elif grid is not None:
+        tempo = float(grid["tempo"])
     else:
         raw_tempo = estimate_tempo(audio, sample_rate)
         tempo = float(np.atleast_1d(raw_tempo).astype(float)[0])
@@ -70,7 +86,9 @@ def analyze(
         classified = classify_rudiment_events(audio, sample_rate, onsets)
     else:
         click_times = None if click is None else click["click_times"]
-        classified = detect_hits(audio, sample_rate, click_times, _clicks_per_bar(click, time_signature))
+        classified = detect_hits(
+            audio, sample_rate, click_times, _clicks_per_bar(click, time_signature), count_in if click else None
+        )
         if click is not None:
             times = [event["time_sec"] for event in classified]
             kept = set(drop_click_residuals(audio, sample_rate, times, click["click_times"]))
@@ -85,9 +103,11 @@ def analyze(
                 instruments.append(name)
         events.append({"time_sec": float(event["time_sec"]), "instruments": instruments})
 
-    if click is not None:
-        events = align_to_click(events, click)
-    if not rudiment:
+    if count_in:
+        events = [e for e in events if min(abs(e["time_sec"] - t) for t in count_in) > 0.03]
+    if grid is not None:
+        events = align_to_click(events, grid)
+    if not rudiment and not count_in:
         events = align_to_downbeat(events, tempo, time_signature, phase_known=click is not None)
 
     return {
@@ -97,5 +117,6 @@ def analyze(
         "duration_sec": round(len(audio) / sample_rate, 3),
         "click_found": click is not None,
         "clicks_removed": clicks_removed,
-        "grid_origin": None if click is None else click["origin"],
+        "grid_origin": None if grid is None else grid["origin"],
+        "count_in": len(count_in),
     }

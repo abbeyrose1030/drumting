@@ -62,11 +62,25 @@ def _nmf(v: np.ndarray, w0: np.ndarray, fixed: int = 0, iterations: int = 120) -
     return w, h
 
 
-def _click_templates(mel: np.ndarray, click_frames: np.ndarray, cycle: int) -> list[tuple[np.ndarray, np.ndarray, np.ndarray]]:
+def _click_templates(
+    mel: np.ndarray, click_frames: np.ndarray, cycle: int, lone_frames: np.ndarray | None = None
+) -> list[tuple[np.ndarray, np.ndarray, np.ndarray]]:
     """What one leftover click adds to the spectrum, learned from the clicks that land alone.
 
     Metronomes accent beat 1, so each beat of the bar gets its own template. Returns
-    (template, every click frame on that beat, the lone ones) per beat."""
+    (template, every click frame on that beat, the lone ones) per beat. A count-in is
+    known to be clicks alone, so when one is given it is the whole reference."""
+    if lone_frames is not None and lone_frames.size:
+        rises = []
+        for frame in lone_frames:
+            if 4 <= frame < mel.shape[1] - 4:
+                before = mel[:, frame - 4 : frame - 1].mean(axis=1)
+                after = mel[:, frame - 1 : frame + 4].max(axis=1)
+                rises.append(np.maximum(after - before, 0.0))
+        if rises:
+            template = np.median(np.stack(rises), axis=0)
+            if template.sum() > 0:
+                return [(template / template.sum() + 1e-6, np.asarray(click_frames), np.asarray(lone_frames))]
     cycle = max(1, cycle)
     if click_frames.size < 8 * cycle:
         cycle = 1
@@ -241,12 +255,14 @@ def detect_hits(
     sample_rate: int,
     click_times: list[float] | None = None,
     click_cycle: int = 4,
+    count_in: list[float] | None = None,
 ) -> list[dict]:
     """Return [{time_sec, instruments}] for one drum stem.
 
     Pass click_times when a metronome was mixed in, and click_cycle for how many clicks
     make a bar. Whatever is left of the click gets its own templates, so it cannot pass
-    for a snare or a hat."""
+    for a snare or a hat. Pass the count-in when there is one: those clicks have no
+    drums under them, so they show best what the click alone sounds like."""
     import librosa
 
     if sample_rate != SR:
@@ -263,7 +279,8 @@ def detect_hits(
     freqs = librosa.mel_frequencies(n_mels=N_MELS, fmin=FMIN, fmax=FMAX)
     names, w0 = _templates(freqs)
     click_frames = np.asarray([int(round(t / FRAME)) for t in click_times or []], dtype=int)
-    click_groups = _click_templates(mel, click_frames, click_cycle) if click_frames.size else []
+    lone_frames = np.asarray([int(round(t / FRAME)) for t in count_in or []], dtype=int)
+    click_groups = _click_templates(mel, click_frames, click_cycle, lone_frames) if click_frames.size else []
     for index, (template, _all, _lone) in enumerate(click_groups):
         names.append(f"click{index}")
         w0 = np.concatenate([w0, template[:, None]], axis=1)
