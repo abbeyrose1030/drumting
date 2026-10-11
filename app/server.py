@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-import cgi
 import json
 import os
 import re
-import shutil
 import sys
 import traceback
 import uuid
 from datetime import datetime
+from email.parser import BytesParser
+from email.policy import default as email_policy
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlparse
@@ -219,36 +219,51 @@ class Handler(BaseHTTPRequestHandler):
             return {}
         return json.loads(self.rfile.read(length).decode("utf-8"))
 
+    def _multipart(self) -> tuple[dict[str, str], dict[str, tuple[str, bytes]]]:
+        length = int(self.headers.get("Content-Length") or 0)
+        body = self.rfile.read(length) if length > 0 else b""
+        header = (
+            f"Content-Type: {self.headers.get('Content-Type', '')}\r\n"
+            "MIME-Version: 1.0\r\n\r\n"
+        ).encode("utf-8")
+        message = BytesParser(policy=email_policy).parsebytes(header + body)
+        fields: dict[str, str] = {}
+        files: dict[str, tuple[str, bytes]] = {}
+        parts = list(message.iter_parts()) or ([message] if message.get_content_disposition() else [])
+        for part in parts:
+            name = part.get_param("name", header="content-disposition")
+            if not name:
+                continue
+            filename = part.get_filename()
+            payload = part.get_payload(decode=True) or b""
+            if filename:
+                files[name] = (filename, payload)
+            else:
+                fields[name] = payload.decode("utf-8", errors="replace")
+        return fields, files
+
     def _transcribe(self) -> None:
-        form = cgi.FieldStorage(
-            fp=self.rfile,
-            headers=self.headers,
-            environ={
-                "REQUEST_METHOD": "POST",
-                "CONTENT_TYPE": self.headers.get("Content-Type", ""),
-                "CONTENT_LENGTH": self.headers.get("Content-Length", "0"),
-            },
-        )
-        upload = form["audio"] if "audio" in form else None
-        if upload is None or not getattr(upload, "file", None) or not upload.filename:
+        fields, files = self._multipart()
+        upload = files.get("audio")
+        if upload is None or not upload[0] or not upload[1]:
             raise ValueError("Choose an audio file first.")
-        suffix = Path(upload.filename).suffix.lower()
+        filename, audio_bytes = upload
+        suffix = Path(filename).suffix.lower()
         if suffix not in AUDIO_SUFFIXES:
             raise ValueError("Use a wav, mp3, flac, aiff, ogg, or m4a drum stem.")
 
         job_id = datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:6]
         job_dir = OUTPUTS / job_id
         job_dir.mkdir(parents=True, exist_ok=True)
-        safe_name = Path(upload.filename).name
+        safe_name = Path(filename).name
         audio_path = job_dir / f"source{suffix}"
-        with audio_path.open("wb") as handle:
-            shutil.copyfileobj(upload.file, handle)
+        audio_path.write_bytes(audio_bytes)
 
-        title = str(form.getfirst("title") or Path(safe_name).stem).strip() or "Drum Notation"
-        time_signature = str(form.getfirst("time_signature") or "4/4")
-        rudiment = str(form.getfirst("rudiment") or "").lower() in {"1", "true", "on", "yes"}
-        use_click = str(form.getfirst("has_click") or "").lower() in {"1", "true", "on", "yes"}
-        bpm = _parse_bpm(form.getfirst("bpm"))
+        title = str(fields.get("title") or Path(safe_name).stem).strip() or "Drum Notation"
+        time_signature = str(fields.get("time_signature") or "4/4")
+        rudiment = str(fields.get("rudiment") or "").lower() in {"1", "true", "on", "yes"}
+        use_click = str(fields.get("has_click") or "").lower() in {"1", "true", "on", "yes"}
+        bpm = _parse_bpm(fields.get("bpm"))
         print(f"Transcribing {safe_name} ({time_signature}, bpm={bpm}, click={use_click}, rudiment={rudiment})")
         result = analyze(
             str(audio_path),
