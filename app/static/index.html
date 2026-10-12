@@ -464,6 +464,43 @@
       errorEl.textContent = message || "";
     }
 
+    async function readJson(response) {
+      const text = await response.text();
+      if (!text.trim()) {
+        throw new Error(
+          "The host closed the request with an empty reply. On Render's free plan a full stem often hits the 100-second cutoff or the 512 MB memory cap."
+        );
+      }
+      try {
+        return JSON.parse(text);
+      } catch {
+        throw new Error(`The server sent a ${response.status} reply that was not JSON.`);
+      }
+    }
+
+    async function waitForJob(jobId) {
+      const deadline = Date.now() + 8 * 60 * 1000;
+      let misses = 0;
+      while (Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        try {
+          const payload = await readJson(await fetch(`/api/jobs/${jobId}`));
+          misses = 0;
+          const job = payload.job;
+          if (!job) throw new Error("That transcription disappeared.");
+          if (job.status === "error") throw new Error(job.error || "Transcription failed.");
+          if (job.status !== "working") return job;
+        } catch (err) {
+          misses += 1;
+          if (misses >= 8) {
+            throw new Error("The host restarted mid-transcription, usually because Render's free 512 MB ran out.");
+          }
+          if (!/empty reply|not JSON|Failed to fetch|NetworkError/.test(err.message)) throw err;
+        }
+      }
+      throw new Error("This is taking too long on the free host. Try a shorter clip, or bump Render above 512 MB.");
+    }
+
     function working(on, message) {
       go.disabled = on || !file;
       statusEl.hidden = !on;
@@ -507,9 +544,13 @@
       body.append("rudiment", document.getElementById("rudiment").checked ? "true" : "false");
       try {
         const response = await fetch("/api/transcribe", { method: "POST", body });
-        const payload = await response.json();
-        if (!response.ok) throw new Error(payload.error || "Transcription failed.");
-        showJob(payload.job);
+        const payload = await readJson(response);
+        if (!response.ok && response.status !== 202) throw new Error(payload.error || "Transcription failed.");
+        const job = payload.job && payload.job.status === "working"
+          ? await waitForJob(payload.job.id)
+          : payload.job;
+        if (!job) throw new Error("Transcription failed.");
+        showJob(job);
         loadRecent();
       } catch (err) {
         setError(err.message);
@@ -582,7 +623,7 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
-        const data = await response.json();
+        const data = await readJson(response);
         if (!response.ok) throw new Error(data.error || "Could not redraw.");
         showJob(data.job);
       } catch (err) {
@@ -611,22 +652,29 @@
     });
 
     async function loadRecent() {
-      const response = await fetch("/api/jobs");
-      const payload = await response.json();
-      recent.innerHTML = "";
-      if (!payload.jobs || !payload.jobs.length) {
-        recent.innerHTML = '<li style="color:var(--muted);font-size:13px">None yet</li>';
-        return;
+      try {
+        const payload = await readJson(await fetch("/api/jobs"));
+        const jobs = (payload.jobs || []).filter((job) => job.status !== "working");
+        recent.innerHTML = "";
+        if (!jobs.length) {
+          recent.innerHTML = '<li style="color:var(--muted);font-size:13px">None yet</li>';
+          return;
+        }
+        jobs.forEach((job) => {
+          const item = document.createElement("li");
+          const button = document.createElement("button");
+          button.type = "button";
+          button.innerHTML = `${job.title}<small>${job.time_signature} · ${Math.round(job.tempo || 0)} BPM</small>`;
+          button.addEventListener("click", () => {
+            if (job.status === "error") return;
+            showJob(job);
+          });
+          item.appendChild(button);
+          recent.appendChild(item);
+        });
+      } catch (err) {
+        recent.innerHTML = `<li style="color:var(--muted);font-size:13px">${err.message}</li>`;
       }
-      payload.jobs.forEach((job) => {
-        const item = document.createElement("li");
-        const button = document.createElement("button");
-        button.type = "button";
-        button.innerHTML = `${job.title}<small>${job.time_signature} · ${Math.round(job.tempo)} BPM</small>`;
-        button.addEventListener("click", () => showJob(job));
-        item.appendChild(button);
-        recent.appendChild(item);
-      });
     }
 
     loadRecent();

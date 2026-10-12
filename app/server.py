@@ -6,6 +6,7 @@ import json
 import os
 import re
 import sys
+import threading
 import traceback
 import uuid
 from datetime import datetime
@@ -28,6 +29,7 @@ PORT = int(os.environ.get("PORT", "8765"))
 HOST = os.environ.get("HOST", "0.0.0.0" if "PORT" in os.environ else "127.0.0.1")
 JOB_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 AUDIO_SUFFIXES = {".wav", ".mp3", ".flac", ".aif", ".aiff", ".ogg", ".m4a"}
+_ANALYZE = threading.Lock()
 
 
 def _job_dir(job_id: str) -> Path:
@@ -81,10 +83,12 @@ def _public_job(meta: dict) -> dict:
     counts = meta.get("counts") or {}
     return {
         "id": meta["id"],
-        "title": meta["title"],
+        "title": meta.get("title") or "Drum Notation",
         "filename": meta.get("filename") or "",
-        "tempo": meta["tempo"],
-        "time_signature": meta["time_signature"],
+        "status": meta.get("status") or "ready",
+        "error": meta.get("error") or "",
+        "tempo": meta.get("tempo") or 0,
+        "time_signature": meta.get("time_signature") or "4/4",
         "subdivision": meta.get("subdivision") or 16,
         "shift_sixteenths": meta.get("shift_sixteenths") or 0,
         "measures_per_system": meta.get("measures_per_system") or 4,
@@ -264,37 +268,27 @@ class Handler(BaseHTTPRequestHandler):
         rudiment = str(fields.get("rudiment") or "").lower() in {"1", "true", "on", "yes"}
         use_click = str(fields.get("has_click") or "").lower() in {"1", "true", "on", "yes"}
         bpm = _parse_bpm(fields.get("bpm"))
-        print(f"Transcribing {safe_name} ({time_signature}, bpm={bpm}, click={use_click}, rudiment={rudiment})")
-        result = analyze(
-            str(audio_path),
-            rudiment=rudiment,
-            bpm=bpm,
-            time_signature=time_signature,
-            use_click=use_click,
-        )
-        (job_dir / "events.json").write_text(json.dumps(result["events"]), encoding="utf-8")
-
+        print(f"Queued {safe_name} ({time_signature}, bpm={bpm}, click={use_click}, rudiment={rudiment})")
         meta = {
             "id": job_id,
             "title": title[:120],
             "filename": safe_name,
-            "tempo": result["tempo"],
+            "status": "working",
+            "tempo": bpm or 0,
             "time_signature": time_signature,
             "subdivision": 16,
             "shift_sixteenths": 0,
             "measures_per_system": 4,
             "rudiment": rudiment,
-            "click_found": result.get("click_found"),
-            "clicks_removed": result.get("clicks_removed") or 0,
-            "onset_count": result["onset_count"],
-            "event_count": len(result["events"]),
-            "duration_sec": result["duration_sec"],
             "created": datetime.now().isoformat(timespec="seconds"),
         }
-        print(f"  tempo {result['tempo']} BPM, {result['onset_count']} onsets, {len(result['events'])} events")
         _write_meta(job_dir, meta)
-        meta = engrave_job(job_dir, meta)
-        self._json(200, {"job": _public_job(meta)})
+        threading.Thread(
+            target=_finish_transcribe,
+            args=(job_dir, audio_path, meta, rudiment, bpm, time_signature, use_click),
+            daemon=True,
+        ).start()
+        self._json(202, {"job": _public_job(meta)})
 
     def _reengrave(self, job_id: str) -> None:
         job_dir = _job_dir(job_id)
@@ -327,6 +321,44 @@ class Handler(BaseHTTPRequestHandler):
         print(f"Redrawing {job_id} at {meta['tempo']} BPM, {meta['time_signature']}")
         meta = engrave_job(job_dir, meta)
         self._json(200, {"job": _public_job(meta)})
+
+
+def _finish_transcribe(
+    job_dir: Path,
+    audio_path: Path,
+    meta: dict,
+    rudiment: bool,
+    bpm: float | None,
+    time_signature: str,
+    use_click: bool,
+) -> None:
+    try:
+        with _ANALYZE:
+            result = analyze(
+                str(audio_path),
+                rudiment=rudiment,
+                bpm=bpm,
+                time_signature=time_signature,
+                use_click=use_click,
+            )
+        (job_dir / "events.json").write_text(json.dumps(result["events"]), encoding="utf-8")
+        meta.update({
+            "tempo": result["tempo"],
+            "click_found": result.get("click_found"),
+            "clicks_removed": result.get("clicks_removed") or 0,
+            "onset_count": result["onset_count"],
+            "event_count": len(result["events"]),
+            "duration_sec": result["duration_sec"],
+            "status": "ready",
+        })
+        print(f"  tempo {result['tempo']} BPM, {result['onset_count']} onsets, {len(result['events'])} events")
+        _write_meta(job_dir, meta)
+        engrave_job(job_dir, meta)
+    except Exception as exc:  # noqa: BLE001
+        traceback.print_exc()
+        meta["status"] = "error"
+        meta["error"] = str(exc)
+        _write_meta(job_dir, meta)
 
 
 def main() -> None:
