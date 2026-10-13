@@ -7,7 +7,11 @@ The ring of the last hit cannot fake a new one.
 
 from __future__ import annotations
 
+import os
+
 import numpy as np
+
+_NMF_ITERS = 60 if os.environ.get("RENDER") else 120
 
 SR = 44100
 HOP = 256
@@ -42,7 +46,7 @@ def _templates(freqs: np.ndarray) -> tuple[list[str], np.ndarray]:
     return names, w + 1e-6
 
 
-def _nmf(v: np.ndarray, w0: np.ndarray, fixed: int = 0, iterations: int = 120) -> tuple[np.ndarray, np.ndarray]:
+def _nmf(v: np.ndarray, w0: np.ndarray, fixed: int = 0, iterations: int = _NMF_ITERS) -> tuple[np.ndarray, np.ndarray]:
     """KL-NMF that lets each template fit this kit, but only halfway.
     The last `fixed` templates were measured from this recording and stay as they are."""
     rng = np.random.default_rng(0)

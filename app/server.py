@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+import gc
 import json
 import os
 import re
-import subprocess
 import sys
 import threading
 import traceback
@@ -347,43 +347,37 @@ def _finish_transcribe(
     time_signature: str,
     use_click: bool,
 ) -> None:
-    memory_error = (
-        "The host ran out of memory. Render's free plan is 512 MB; "
-        "this app needs about 2 GB for a full stem."
-    )
     try:
         with _ANALYZE:
-            completed = subprocess.run(
-                [
-                    sys.executable,
-                    str(ROOT / "app" / "worker.py"),
-                    str(job_dir),
-                    str(audio_path),
-                    "1" if rudiment else "0",
-                    "" if bpm is None else str(bpm),
-                    time_signature,
-                    "1" if use_click else "0",
-                ],
-                cwd=str(ROOT),
-                env={**os.environ, "PYTHONPATH": str(ROOT)},
-                timeout=600,
+            from app.analyze import analyze
+
+            print(f"Transcribing {meta.get('filename')} ({time_signature}, bpm={bpm}, click={use_click})")
+            result = analyze(
+                str(audio_path),
+                rudiment=rudiment,
+                bpm=bpm,
+                time_signature=time_signature,
+                use_click=use_click,
             )
-        latest = json.loads((job_dir / "meta.json").read_text(encoding="utf-8"))
-        if completed.returncode in {-9, 9, 137, 139, 247} or latest.get("status") == "working":
-            latest["status"] = "error"
-            latest["error"] = memory_error if completed.returncode != 1 else (
-                latest.get("error") or memory_error
-            )
-            _write_meta(job_dir, latest)
-    except subprocess.TimeoutExpired:
-        meta = json.loads((job_dir / "meta.json").read_text(encoding="utf-8"))
-        meta["status"] = "error"
-        meta["error"] = "Transcription timed out after 10 minutes."
-        _write_meta(job_dir, meta)
+            gc.collect()
+            (job_dir / "events.json").write_text(json.dumps(result["events"]), encoding="utf-8")
+            meta.update({
+                "tempo": result["tempo"],
+                "click_found": result.get("click_found"),
+                "clicks_removed": result.get("clicks_removed") or 0,
+                "onset_count": result["onset_count"],
+                "event_count": len(result["events"]),
+                "duration_sec": result["duration_sec"],
+                "status": "ready",
+            })
+            print(f"  tempo {result['tempo']} BPM, {result['onset_count']} onsets, {len(result['events'])} events")
+            _write_meta(job_dir, meta)
+            engrave_job(job_dir, meta)
+            gc.collect()
     except Exception as exc:  # noqa: BLE001
         traceback.print_exc()
         meta["status"] = "error"
-        meta["error"] = str(exc)
+        meta["error"] = str(exc) or repr(exc)
         _write_meta(job_dir, meta)
 
 
