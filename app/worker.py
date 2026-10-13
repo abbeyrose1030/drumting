@@ -75,7 +75,7 @@ def main() -> int:
     except Exception as exc:  # noqa: BLE001
         traceback.print_exc()
         meta["status"] = "error"
-        meta["error"] = str(exc)
+        meta["error"] = str(exc) or repr(exc)
         _write_meta(job_dir, meta)
         return 1
 

@@ -2,5 +2,5 @@ services:
   - type: web
     name: drumting
     runtime: docker
-    plan: free
+    plan: standard
     healthCheckPath: /

@@ -366,6 +366,7 @@ def _finish_transcribe(
                 ],
                 cwd=str(ROOT),
                 env={**os.environ, "PYTHONPATH": str(ROOT)},
+                timeout=600,
             )
         latest = json.loads((job_dir / "meta.json").read_text(encoding="utf-8"))
         if completed.returncode in {-9, 9, 137, 139, 247} or latest.get("status") == "working":
@@ -374,6 +375,11 @@ def _finish_transcribe(
                 latest.get("error") or memory_error
             )
             _write_meta(job_dir, latest)
+    except subprocess.TimeoutExpired:
+        meta = json.loads((job_dir / "meta.json").read_text(encoding="utf-8"))
+        meta["status"] = "error"
+        meta["error"] = "Transcription timed out after 10 minutes."
+        _write_meta(job_dir, meta)
     except Exception as exc:  # noqa: BLE001
         traceback.print_exc()
         meta["status"] = "error"
